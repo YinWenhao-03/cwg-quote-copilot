@@ -160,8 +160,11 @@ class HuggingFaceEmbedder:
 def get_embedder():
     settings = get_settings()
     if settings.embedding_provider == "huggingface":
+        api_key = settings.embedding_api_key or settings.llm_api_key or ""
+        if not api_key:
+            return HashingEmbedder()
         return HuggingFaceEmbedder(
-            api_key=settings.embedding_api_key or settings.llm_api_key or "",
+            api_key=api_key,
             model_name=settings.embedding_model,
             query_prefix=settings.embedding_query_prefix,
             document_prefix=settings.embedding_document_prefix,
