@@ -3,6 +3,7 @@ from app.answering import (
     _fallback_claims,
     _validated_claims,
     get_answer_service,
+    is_price_reference_question,
     is_price_sensitive,
 )
 from app.schemas import Evidence
@@ -45,6 +46,42 @@ def test_price_questions_are_routed_away_from_document_answering() -> None:
     assert response.citations == []
     assert response.evidence == []
     assert response.model == "deterministic-pricing-router"
+
+
+def test_manager_can_answer_price_policy_questions_from_management_evidence() -> None:
+    query = "管理层底价政策和例外报价规则是什么"
+    assert is_price_reference_question(query)
+    service = GroundedAnswerService()
+    service.provider = "disabled-for-test"
+    response = service.answer(
+        query=query,
+        evidence=[
+            evidence("管理层底价政策规定：例外报价必须由经理填写理由并保留审计记录。")
+        ],
+        retrieval_mode="hybrid",
+        allow_sensitive_references=True,
+    )
+    service.close()
+
+    assert response.answer_type == "grounded"
+    assert response.citations
+    assert response.evidence
+
+
+def test_manager_live_price_question_still_uses_pricing_and_keeps_related_evidence() -> None:
+    query = "这个客户当前最低可以报多少钱"
+    assert not is_price_reference_question(query)
+    related = [evidence("低于标准最低价的例外报价必须由经理填写理由。")]
+    response = get_answer_service().answer(
+        query=query,
+        evidence=related,
+        retrieval_mode="hybrid",
+        allow_sensitive_references=True,
+    )
+
+    assert response.answer_type == "requires_pricing_workflow"
+    assert response.evidence == related
+    assert "实时定价" in response.answer
 
 
 def test_fallback_keeps_relevant_fact_and_reports_its_real_source() -> None:

@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from app.answering import get_answer_service
 from app.main import app
 
 
@@ -96,3 +97,31 @@ def test_management_document_never_reaches_sales_search() -> None:
         manager_results = client.post("/search", headers=manager, json=payload).json()
         assert all(item["metadata"]["classification"] != "management" for item in sales_results)
         assert any(item["metadata"]["classification"] == "management" for item in manager_results)
+
+
+def test_manager_can_answer_from_management_price_policy_but_sales_cannot() -> None:
+    service = get_answer_service()
+    previous_provider = service.provider
+    service.provider = "disabled-for-test"
+    try:
+        with TestClient(app) as client:
+            sales = login(client, "sales@cwg.local", "SalesDemo!2026")
+            manager = login(client, "manager@cwg.local", "ManagerDemo!2026")
+            payload = {
+                "query": "管理层底价政策和例外报价规则是什么",
+                "top_k": 6,
+                "retrieval_mode": "hybrid",
+            }
+
+            sales_answer = client.post("/answer", headers=sales, json=payload).json()
+            manager_answer = client.post("/answer", headers=manager, json=payload).json()
+
+            assert sales_answer["answer_type"] == "requires_pricing_workflow"
+            assert sales_answer["evidence"] == []
+            assert manager_answer["answer_type"] == "grounded"
+            assert any(
+                item["metadata"]["classification"] == "management"
+                for item in manager_answer["evidence"]
+            )
+    finally:
+        service.provider = previous_provider

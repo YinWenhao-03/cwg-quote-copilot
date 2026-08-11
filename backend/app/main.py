@@ -539,8 +539,9 @@ def answer_knowledge(
     db: Session = Depends(get_db),
 ) -> AnswerResponse:
     ensure_customer_access(user, payload.customer_id)
+    can_review_sensitive_references = user.role == "manager"
     evidence = []
-    if not is_price_sensitive(payload.query):
+    if not is_price_sensitive(payload.query) or can_review_sensitive_references:
         evidence = get_search_service().search(
             db,
             query=payload.query,
@@ -554,6 +555,7 @@ def answer_knowledge(
         query=payload.query,
         evidence=evidence,
         retrieval_mode=payload.retrieval_mode,
+        allow_sensitive_references=can_review_sensitive_references,
     )
     trace_id = str(__import__("uuid").uuid4())
     record_audit(
@@ -567,6 +569,7 @@ def answer_knowledge(
             "retrieval_mode": payload.retrieval_mode,
             "answer_type": response.answer_type,
             "answer_model": response.model,
+            "sensitive_reference_access": can_review_sensitive_references,
             "citations": [citation.chunk_id for citation in response.citations],
             "results": [item.chunk_id for item in evidence],
         },
