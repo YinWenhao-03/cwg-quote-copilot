@@ -18,7 +18,7 @@ services:
       - key: ANSWER_PROVIDER
         value: openai_compatible
       - key: ANSWER_MODEL
-        value: deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B:featherless-ai
+        value: Qwen/Qwen2.5-7B-Instruct:featherless-ai
       - key: EMBEDDING_PROVIDER
         value: huggingface
       - key: EMBEDDING_MODEL

@@ -190,10 +190,17 @@ class GroundedAnswerService:
             headers={"Authorization": f"Bearer {self.api_key}"},
             json={
                 "model": self.model,
-                "messages": [{"role": "user", "content": self._prompt(query, evidence)}],
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "你是企业知识库 JSON API，只输出合法 JSON。",
+                    },
+                    {"role": "user", "content": self._prompt(query, evidence)},
+                ],
                 "temperature": 0,
-                "max_tokens": 700,
+                "max_tokens": 400,
                 "stream": False,
+                "response_format": {"type": "json_object"},
             },
         )
         response.raise_for_status()

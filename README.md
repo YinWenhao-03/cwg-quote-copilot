@@ -140,7 +140,7 @@ scripts/dev.py     前后端统一启动器
 ## 云端演示
 
 `Dockerfile` 和 `render.yaml` 可将完整应用部署到 Render。免费演示模式使用
-Hugging Face Inference Providers：`DeepSeek-R1-Distill-Qwen-1.5B` 负责证据约束回答，
+Hugging Face Inference Providers：`Qwen2.5-7B-Instruct` 负责证据约束回答，
 `BAAI/bge-small-zh-v1.5` 负责中文 Dense 检索。Render 中只需将具有
 Inference Providers 权限的 Hugging Face Token 填入 `LLM_API_KEY`，不要把 Token 写入代码。
 
