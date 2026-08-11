@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
 import { ArrowRight, LockKeyhole, ShieldCheck } from "lucide-react";
 
 const accounts = [
@@ -15,13 +14,26 @@ export default function LoginPage() {
   const [password, setPassword] = useState(accounts[0].password);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
   async function submit(event: FormEvent) {
     event.preventDefault(); setLoading(true); setError("");
-    const response = await fetch("/api/session/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
-    const payload = await response.json();
-    if (!response.ok) { setError(payload.detail || "登录失败"); setLoading(false); return; }
-    router.replace("/"); router.refresh();
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 20000);
+    try {
+      const response = await fetch("/api/session/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+        signal: controller.signal,
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.detail || "登录失败");
+      window.location.replace("/");
+    } catch (requestError) {
+      setError(requestError instanceof DOMException && requestError.name === "AbortError" ? "登录超时，请重试" : (requestError as Error).message || "登录失败");
+      setLoading(false);
+    } finally {
+      window.clearTimeout(timeout);
+    }
   }
   function choose(account: typeof accounts[number]) { setEmail(account.email); setPassword(account.password); setError(""); }
   return (

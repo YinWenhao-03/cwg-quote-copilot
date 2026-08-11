@@ -50,12 +50,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   useEffect(() => {
-    fetch("/api/session/me", { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) throw new Error();
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 15000);
+    async function loadSession() {
+      try {
+        const response = await fetch("/api/session/me", { cache: "no-store", signal: controller.signal });
+        if (!response.ok) throw new Error("登录状态已失效");
         setUser(await response.json());
-      })
-      .catch(() => router.replace("/login"));
+      } catch {
+        await fetch("/api/session/logout", { method: "POST" }).catch(() => undefined);
+        window.location.replace("/login");
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    }
+    loadSession();
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
   }, [router]);
   const items = useMemo(() => navigation.filter((item) => user && item.roles.includes(user.role)), [user]);
   async function logout() {
