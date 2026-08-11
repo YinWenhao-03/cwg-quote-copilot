@@ -5,10 +5,11 @@ const backend = process.env.BACKEND_URL || "http://127.0.0.1:8000";
 
 async function proxy(request: NextRequest, { params }: { params: { path: string[] } }) {
   const token = cookies().get("cwg_token")?.value;
-  if (!token) return NextResponse.json({ detail: "请先登录" }, { status: 401 });
+  const isHealthCheck = params.path.length === 1 && params.path[0] === "health";
+  if (!token && !isHealthCheck) return NextResponse.json({ detail: "请先登录" }, { status: 401 });
   const target = `${backend}/${params.path.join("/")}${request.nextUrl.search}`;
   const headers = new Headers();
-  headers.set("Authorization", `Bearer ${token}`);
+  if (token) headers.set("Authorization", `Bearer ${token}`);
   const contentType = request.headers.get("content-type");
   if (contentType) headers.set("Content-Type", contentType);
   const hasBody = !["GET", "HEAD"].includes(request.method);
