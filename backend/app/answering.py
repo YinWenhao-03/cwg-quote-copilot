@@ -98,8 +98,12 @@ def _validated_claims(payload: dict[str, Any], evidence: list[Evidence]) -> list
 
 
 def _fallback_claims(query: str, evidence: list[Evidence]) -> list[GroundedClaim]:
-    query_tokens = _meaningful_tokens(query)
-    candidates: list[tuple[float, int, str]] = []
+    query_tokens = {
+        token
+        for token in _meaningful_tokens(query)
+        if not (token.isascii() and any(char.isdigit() for char in token))
+    }
+    candidates: list[tuple[float, float, int, str]] = []
     for index, item in enumerate(evidence[:3], start=1):
         segments = re.split(r"(?<=[。！？；])|[\r\n]+", item.content)
         for segment in segments:
@@ -108,11 +112,13 @@ def _fallback_claims(query: str, evidence: list[Evidence]) -> list[GroundedClaim
                 continue
             segment_tokens = _meaningful_tokens(segment)
             overlap = len(query_tokens & segment_tokens) / max(len(query_tokens), 1)
-            candidates.append((overlap + item.score * 0.05, index, segment))
+            candidates.append((overlap + item.score * 0.05, overlap, index, segment))
     candidates.sort(reverse=True, key=lambda value: value[0])
     claims: list[GroundedClaim] = []
     used: set[str] = set()
-    for _, index, segment in candidates:
+    for _, overlap, index, segment in candidates:
+        if overlap < 0.12:
+            continue
         normalized = re.sub(r"\s+", "", segment)
         if normalized in used:
             continue
@@ -227,6 +233,7 @@ class GroundedAnswerService:
             )
 
         claims: list[GroundedClaim] = []
+        used_fallback = False
         if self.provider == "ollama":
             try:
                 claims = self._ollama_claims(query, evidence)
@@ -246,6 +253,7 @@ class GroundedAnswerService:
                 claims = []
         if not claims:
             claims = _fallback_claims(query, evidence)
+            used_fallback = True
         if not claims:
             return AnswerResponse(
                 answer="检索到了相关资料，但证据不足以形成可靠答案。",
@@ -270,7 +278,7 @@ class GroundedAnswerService:
             citations=citations,
             evidence=evidence,
             grounded=True,
-            model=self.model if self.provider in {"ollama", "openai_compatible"} else "extractive-fallback",
+            model="extractive-fallback" if used_fallback else self.model,
             retrieval_mode=retrieval_mode,
         )
 

@@ -1,4 +1,10 @@
-from app.answering import _validated_claims, get_answer_service, is_price_sensitive
+from app.answering import (
+    GroundedAnswerService,
+    _fallback_claims,
+    _validated_claims,
+    get_answer_service,
+    is_price_sensitive,
+)
 from app.schemas import Evidence
 
 
@@ -39,3 +45,25 @@ def test_price_questions_are_routed_away_from_document_answering() -> None:
     assert response.citations == []
     assert response.evidence == []
     assert response.model == "deterministic-pricing-router"
+
+
+def test_fallback_keeps_relevant_fact_and_reports_its_real_source() -> None:
+    items = [
+        evidence("出口运输增加防潮袋、边角保护和跌落标签。"),
+        evidence("S4-1003 产品技术资料"),
+    ]
+
+    claims = _fallback_claims("S4-1003出口运输的包装要求是什么", items)
+    assert [claim.text for claim in claims] == ["出口运输增加防潮袋、边角保护和跌落标签。"]
+
+    service = GroundedAnswerService()
+    service.provider = "disabled-for-test"
+    response = service.answer(
+        query="S4-1003出口运输的包装要求是什么",
+        evidence=items,
+        retrieval_mode="hybrid",
+    )
+    service.close()
+
+    assert response.answer == "1. 出口运输增加防潮袋、边角保护和跌落标签。 [1]"
+    assert response.model == "extractive-fallback"
