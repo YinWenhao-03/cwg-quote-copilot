@@ -1,9 +1,10 @@
+import pytest
 from sqlalchemy import func, select
 
 from app.db import SessionLocal
 from app.evaluation import run_evaluation
 from app.models import Document, DocumentVersion, User
-from app.search import get_search_service
+from app.search import HuggingFaceEmbedder, get_search_service
 
 
 def test_seed_contains_expected_document_versions() -> None:
@@ -50,3 +51,9 @@ def test_hybrid_results_expose_dense_bm25_and_rrf_trace() -> None:
     assert trace["dense_rank"] is not None
     assert trace["bm25_rank"] is not None
     assert trace["rrf_score"] > 0
+
+
+def test_hugging_face_embedder_uses_normalized_cls_pooling() -> None:
+    vector = HuggingFaceEmbedder._pool_and_normalize([[3.0, 4.0], [9.0, 9.0]])
+
+    assert vector == pytest.approx([0.6, 0.8])

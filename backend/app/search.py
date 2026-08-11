@@ -126,11 +126,13 @@ class HuggingFaceEmbedder:
         query_prefix: str = "",
         document_prefix: str = "",
     ) -> None:
-        from huggingface_hub import InferenceClient
-
         if not api_key:
             raise RuntimeError("Hugging Face embedding mode requires EMBEDDING_API_KEY")
-        self.client = InferenceClient(provider="hf-inference", api_key=api_key)
+        self.url = f"https://router.huggingface.co/hf-inference/models/{model_name}"
+        self.http = httpx.Client(
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=120,
+        )
         self.model_name = model_name
         self.query_prefix = query_prefix.strip()
         self.document_prefix = document_prefix.strip()
@@ -147,14 +149,36 @@ class HuggingFaceEmbedder:
         return self.embed_many([text], purpose=purpose)[0]
 
     def embed_many(self, texts: list[str], *, purpose: str = "document") -> list[list[float]]:
-        vectors = self.client.feature_extraction(
-            [self._prepare(text, purpose) for text in texts],
-            model=self.model_name,
+        response = self.http.post(
+            self.url,
+            json={
+                "inputs": [self._prepare(text, purpose) for text in texts],
+                "options": {"wait_for_model": True},
+            },
         )
-        values = vectors.tolist() if hasattr(vectors, "tolist") else vectors
+        response.raise_for_status()
+        values = response.json()
         if len(values) != len(texts):
             raise RuntimeError("Hugging Face embedding response count does not match the request")
-        return [[float(value) for value in vector] for vector in values]
+        return [self._pool_and_normalize(value) for value in values]
+
+    @staticmethod
+    def _pool_and_normalize(value: list[object]) -> list[float]:
+        if not value:
+            raise RuntimeError("Hugging Face returned an empty embedding")
+        # BGE v1.5's SentenceTransformers config uses CLS pooling. Some hosted
+        # endpoints already return a pooled vector, so accept both response forms.
+        vector = value[0] if isinstance(value[0], list) else value
+        result = np.asarray(vector, dtype=np.float32)
+        if result.ndim != 1:
+            raise RuntimeError("Hugging Face returned an unsupported embedding shape")
+        norm = float(np.linalg.norm(result))
+        if not norm:
+            raise RuntimeError("Hugging Face returned a zero embedding")
+        return (result / norm).tolist()
+
+    def close(self) -> None:
+        self.http.close()
 
 
 def get_embedder():
