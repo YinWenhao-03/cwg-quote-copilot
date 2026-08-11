@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --ink: #16211d;
+  --muted: #63706a;
+  --line: #dce3df;
+  --surface: #ffffff;
+  --canvas: #f4f6f4;
+  --accent: #087f6d;
+  --accent-dark: #056354;
+  --accent-soft: #e5f4f0;
+  --amber: #a96208;
+  --amber-soft: #fff3db;
+  --red: #b33939;
+  --red-soft: #fdecec;
+}
+
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  letter-spacing: 0;
+}
+button, input, select, textarea { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .5; }
+a { color: inherit; text-decoration: none; }
+
+@layer components {
+  .panel { @apply border border-[var(--line)] bg-white; border-radius: 8px; }
+  .field { @apply h-10 w-full border border-[var(--line)] bg-white px-3 text-sm outline-none transition; border-radius: 6px; }
+  .field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(8,127,109,.12); }
+  textarea.field { @apply h-auto min-h-24 py-2; }
+  .button-primary { @apply inline-flex h-10 items-center justify-center gap-2 px-4 text-sm font-semibold text-white transition; border-radius: 6px; background: var(--accent); }
+  .button-primary:hover { background: var(--accent-dark); }
+  .button-secondary { @apply inline-flex h-10 items-center justify-center gap-2 border border-[var(--line)] bg-white px-4 text-sm font-semibold transition; border-radius: 6px; }
+  .button-secondary:hover { background: #f7f9f8; }
+  .button-danger { @apply inline-flex h-10 items-center justify-center gap-2 px-4 text-sm font-semibold text-white; border-radius: 6px; background: var(--red); }
+  .eyebrow { @apply text-xs font-semibold uppercase text-[var(--muted)]; }
+  .page-title { @apply text-2xl font-semibold; }
+  .table-shell { @apply overflow-x-auto border border-[var(--line)] bg-white; border-radius: 8px; }
+  .data-table { @apply w-full border-collapse text-left text-sm; }
+  .data-table th { @apply whitespace-nowrap border-b border-[var(--line)] bg-[#f8faf9] px-4 py-3 text-xs font-semibold text-[var(--muted)]; }
+  .data-table td { @apply border-b border-[#edf1ef] px-4 py-3 align-top; }
+  .data-table tr:last-child td { border-bottom: 0; }
+}

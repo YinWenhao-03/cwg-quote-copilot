@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: cwg-quote-copilot
+    runtime: docker
+    plan: free
+    healthCheckPath: /login
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_SECRET
+        generateValue: true
+      - key: LLM_PROVIDER
+        value: mock
+      - key: LLM_BASE_URL
+        value: https://router.huggingface.co/v1
+      - key: LLM_API_KEY
+        sync: false
+      - key: ANSWER_PROVIDER
+        value: openai_compatible
+      - key: ANSWER_MODEL
+        value: deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B:featherless-ai
+      - key: EMBEDDING_PROVIDER
+        value: huggingface
+      - key: EMBEDDING_MODEL
+        value: BAAI/bge-small-zh-v1.5
+      - key: EMBEDDING_QUERY_PREFIX
+        value: ""
+      - key: EMBEDDING_DOCUMENT_PREFIX
+        value: ""
+      - key: RERANKER_PROVIDER
+        value: heuristic

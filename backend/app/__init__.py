@@ -1,0 +1,1 @@
+"""CWG Quote Copilot backend."""
