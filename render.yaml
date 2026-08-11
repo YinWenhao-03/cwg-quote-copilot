@@ -3,7 +3,7 @@ services:
     name: cwg-quote-copilot
     runtime: docker
     plan: free
-    healthCheckPath: /login
+    healthCheckPath: /api/backend/health
     envVars:
       - key: APP_ENV
         value: production
