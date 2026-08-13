@@ -48,6 +48,39 @@ def test_price_questions_are_routed_away_from_document_answering() -> None:
     assert response.model == "deterministic-pricing-router"
 
 
+def test_amount_and_approval_wording_is_recognized_as_live_pricing() -> None:
+    query = "S4-1000报800元是否可以提交审批"
+
+    assert is_price_sensitive(query)
+    assert not is_price_reference_question(query)
+    response = get_answer_service().answer(
+        query=query,
+        evidence=[evidence("批量异常须在二十四小时内提交8D问题单。")],
+        retrieval_mode="hybrid",
+    )
+
+    assert response.answer_type == "requires_pricing_workflow"
+    assert response.model == "deterministic-pricing-router"
+    assert response.evidence == []
+
+
+def test_quote_email_is_routed_instead_of_echoed_as_a_knowledge_answer() -> None:
+    query = (
+        "你好，我们是远航智能汽车。请对S4-1001报价320件，纸箱包装，"
+        "发往宁波，贸易条款DAP，币种CNY，希望九月底前交付。"
+    )
+
+    assert is_price_sensitive(query)
+    response = get_answer_service().answer(
+        query=query,
+        evidence=[evidence(query)],
+        retrieval_mode="hybrid",
+    )
+
+    assert response.answer_type == "requires_pricing_workflow"
+    assert response.evidence == []
+
+
 def test_manager_can_answer_price_policy_questions_from_management_evidence() -> None:
     query = "管理层底价政策和例外报价规则是什么"
     assert is_price_reference_question(query)

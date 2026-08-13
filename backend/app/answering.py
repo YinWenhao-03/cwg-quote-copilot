@@ -21,6 +21,8 @@ PRICE_TERMS = (
     "多少钱",
     "毛利",
     "利润",
+    "单价",
+    "售价",
 )
 PRICE_REFERENCE_TERMS = (
     "政策",
@@ -38,6 +40,19 @@ PRICE_REFERENCE_TERMS = (
 )
 NUMBER_PATTERN = re.compile(r"\d+(?:\.\d+)?%?")
 JSON_BLOCK_PATTERN = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL | re.IGNORECASE)
+MONEY_AMOUNT_PATTERN = re.compile(
+    r"(?:报|卖|单价|售价|金额)?\s*"
+    r"(?:人民币|CNY|RMB|USD|EUR|¥|￥|\$|€)?\s*"
+    r"\d+(?:\.\d+)?\s*"
+    r"(?:元|块|人民币|CNY|RMB|USD|EUR|¥|￥|\$|€)",
+    re.IGNORECASE,
+)
+QUOTE_ACTION_PATTERN = re.compile(r"(?:提交|发起|通过|进入).{0,6}(?:审批|报价)|(?:能否|是否|可否).{0,8}(?:报|卖|审批)")
+QUOTE_INQUIRY_PATTERN = re.compile(
+    r"(?:请|希望|需要).{0,20}(?:报价|报个价)|"
+    r"S\d+-\d+.{0,20}\d+\s*(?:件|套|个).{0,30}(?:DAP|DDP|FOB|CIF)",
+    re.IGNORECASE,
+)
 
 
 @dataclass(slots=True)
@@ -47,7 +62,11 @@ class GroundedClaim:
 
 
 def is_price_sensitive(query: str) -> bool:
-    return any(term in query for term in PRICE_TERMS)
+    if any(term in query for term in PRICE_TERMS):
+        return True
+    if QUOTE_INQUIRY_PATTERN.search(query):
+        return True
+    return bool(MONEY_AMOUNT_PATTERN.search(query) and QUOTE_ACTION_PATTERN.search(query))
 
 
 def is_price_reference_question(query: str) -> bool:
