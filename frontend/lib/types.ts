@@ -50,7 +50,7 @@ export interface AnswerCitation {
 
 export interface KnowledgeAnswer {
   answer: string;
-  answer_type: "grounded" | "insufficient" | "requires_pricing_workflow";
+  answer_type: "grounded" | "calculated" | "insufficient" | "requires_pricing_workflow";
   citations: AnswerCitation[];
   evidence: Evidence[];
   grounded: boolean;

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from decimal import Decimal
 from functools import lru_cache
 from typing import Any
 
@@ -53,12 +54,41 @@ QUOTE_INQUIRY_PATTERN = re.compile(
     r"S\d+-\d+.{0,20}\d+\s*(?:件|套|个).{0,30}(?:DAP|DDP|FOB|CIF)",
     re.IGNORECASE,
 )
+SUPPLIER_COST_PATTERN = re.compile(
+    r"供应商成本(?:是|为|[:：=])?\s*(?:人民币|CNY|RMB|¥|￥)?\s*"
+    r"(\d+(?:\.\d+)?)\s*(?:元|块|人民币|CNY|RMB|¥|￥)",
+    re.IGNORECASE,
+)
+HARD_FLOOR_PATTERN = re.compile(
+    r"硬底价(?:是|为|[:：=])?\s*(?:人民币|CNY|RMB|¥|￥)?\s*"
+    r"(\d+(?:\.\d+)?)\s*(?:元|块|人民币|CNY|RMB|¥|￥)",
+    re.IGNORECASE,
+)
+STANDARD_MINIMUM_PATTERN = re.compile(
+    r"标准最低价(?:是|为|[:：=])?\s*(?:人民币|CNY|RMB|¥|￥)?\s*"
+    r"(\d+(?:\.\d+)?)\s*(?:元|块|人民币|CNY|RMB|¥|￥)",
+    re.IGNORECASE,
+)
+OFFERED_PRICE_PATTERN = re.compile(
+    r"(?:销售)?(?:报|报价(?:是|为)?|提交价(?:是|为)?|售价(?:是|为)?)\s*"
+    r"(?:人民币|CNY|RMB|¥|￥)?\s*(\d+(?:\.\d+)?)\s*"
+    r"(?:元|块|人民币|CNY|RMB|¥|￥)",
+    re.IGNORECASE,
+)
 
 
 @dataclass(slots=True)
 class GroundedClaim:
     text: str
     evidence_ids: list[int]
+
+
+@dataclass(slots=True)
+class PriceDecisionInput:
+    offered_price: Decimal
+    hard_floor: Decimal
+    supplier_cost: Decimal | None = None
+    standard_minimum: Decimal | None = None
 
 
 def is_price_sensitive(query: str) -> bool:
@@ -69,9 +99,77 @@ def is_price_sensitive(query: str) -> bool:
     return bool(MONEY_AMOUNT_PATTERN.search(query) and QUOTE_ACTION_PATTERN.search(query))
 
 
+def parse_price_decision(query: str) -> PriceDecisionInput | None:
+    offered = OFFERED_PRICE_PATTERN.search(query)
+    hard_floor = HARD_FLOOR_PATTERN.search(query)
+    if not offered or not hard_floor or not QUOTE_ACTION_PATTERN.search(query):
+        return None
+    supplier_cost = SUPPLIER_COST_PATTERN.search(query)
+    standard_minimum = STANDARD_MINIMUM_PATTERN.search(query)
+    return PriceDecisionInput(
+        offered_price=Decimal(offered.group(1)),
+        hard_floor=Decimal(hard_floor.group(1)),
+        supplier_cost=Decimal(supplier_cost.group(1)) if supplier_cost else None,
+        standard_minimum=(
+            Decimal(standard_minimum.group(1)) if standard_minimum else None
+        ),
+    )
+
+
+def is_price_decision_question(query: str) -> bool:
+    return parse_price_decision(query) is not None
+
+
 def is_price_reference_question(query: str) -> bool:
     """Return true for price-policy/document questions, not a live price request."""
-    return is_price_sensitive(query) and any(term in query for term in PRICE_REFERENCE_TERMS)
+    return (
+        is_price_sensitive(query)
+        and not is_price_decision_question(query)
+        and any(term in query for term in PRICE_REFERENCE_TERMS)
+    )
+
+
+def _format_amount(value: Decimal) -> str:
+    text = format(value, "f")
+    return text.rstrip("0").rstrip(".") if "." in text else text
+
+
+def _price_decision_answer(decision: PriceDecisionInput) -> str:
+    offered = _format_amount(decision.offered_price)
+    hard_floor = _format_amount(decision.hard_floor)
+    if decision.offered_price < decision.hard_floor:
+        conclusion = (
+            f"按你提供的假设，销售报价 {offered} 元低于硬底价 {hard_floor} 元，"
+            "系统应直接阻断，不能提交审批。"
+        )
+    elif (
+        decision.standard_minimum is not None
+        and decision.offered_price < decision.standard_minimum
+    ):
+        standard = _format_amount(decision.standard_minimum)
+        conclusion = (
+            f"按你提供的假设，销售报价 {offered} 元不低于硬底价 {hard_floor} 元，"
+            f"但低于标准最低价 {standard} 元，因此可以提交审批，但属于例外报价，"
+            "需要经理填写理由。"
+        )
+    else:
+        conclusion = (
+            f"按你提供的假设，销售报价 {offered} 元高于或等于硬底价 {hard_floor} 元，"
+            "不会被硬底价规则直接阻断，可以提交审批。"
+        )
+        if decision.standard_minimum is None:
+            conclusion += "但缺少标准最低价，暂时无法判断是否属于需要经理说明理由的例外报价。"
+
+    sources = [f"硬底价 {hard_floor} 元", f"销售报价 {offered} 元"]
+    if decision.supplier_cost is not None:
+        sources.insert(0, f"供应商成本 {_format_amount(decision.supplier_cost)} 元")
+    if decision.standard_minimum is not None:
+        sources.append(f"标准最低价 {_format_amount(decision.standard_minimum)} 元")
+    return (
+        f"{conclusion}\n\n"
+        f"数字来源：{'、'.join(sources)}均来自你本次问题中的假设，不是知识库内部文件。"
+        "系统未检索或引用内部价格文件；如需判断真实报价，请进入报价工作台读取当前有效数据。"
+    )
 
 
 def _parse_json_payload(raw: str) -> dict[str, Any]:
@@ -199,7 +297,8 @@ class GroundedAnswerService:
         return (
             "请回答下面的企业知识库问题。只能复述证据中明确写出的事实，"
             "不得补充常识、推测、评价或证据中没有的结论。把答案拆成独立事实，"
-            "每条事实必须给出直接支持它的证据编号。证据不足时 claims 为空。\n\n"
+            "每条事实必须给出直接支持它的证据编号。答案必须直接回应用户的主要问题；"
+            "如果证据只能支持相关规则却不能回答问题，claims 为空。证据不足时 claims 为空。\n\n"
             f"问题：{query}\n\n证据：\n{context}\n\n"
             '只输出 JSON：{"claims":[{"text":"一条事实","evidence_ids":[1]}]}。'
         )
@@ -253,6 +352,17 @@ class GroundedAnswerService:
         retrieval_mode: str,
         allow_sensitive_references: bool = False,
     ) -> AnswerResponse:
+        price_decision = parse_price_decision(query)
+        if price_decision is not None:
+            return AnswerResponse(
+                answer=_price_decision_answer(price_decision),
+                answer_type="calculated",
+                citations=[],
+                evidence=[],
+                grounded=True,
+                model="deterministic-price-comparison",
+                retrieval_mode=retrieval_mode,
+            )
         sensitive = is_price_sensitive(query)
         can_answer_from_documents = allow_sensitive_references and is_price_reference_question(
             query

@@ -213,12 +213,16 @@ export default function KnowledgePage() {
               <div>
                 <div className="bg-[#f8faf9] p-5 sm:p-6">
                   <div className="mb-3 flex flex-wrap items-center gap-2">
-                    {answer.answer_type === "grounded" ? (
+                    {answer.answer_type === "grounded" || answer.answer_type === "calculated" ? (
                       <span
                         className="inline-flex items-center gap-1.5 bg-[var(--accent-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--accent-dark)]"
                         style={{ borderRadius: 4 }}
                       >
-                        <BadgeCheck size={14} /> 已核验引用
+                        {answer.answer_type === "calculated" ? (
+                          <><Calculator size={14} /> 确定性判断</>
+                        ) : (
+                          <><BadgeCheck size={14} /> 已核验引用</>
+                        )}
                       </span>
                     ) : (
                       <span

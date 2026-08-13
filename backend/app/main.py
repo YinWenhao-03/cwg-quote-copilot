@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session, joinedload
 
-from .answering import get_answer_service, is_price_sensitive
+from .answering import get_answer_service, is_price_reference_question, is_price_sensitive
 from .audit import record_audit
 from .auth import create_access_token, get_current_user, require_roles, verify_password
 from .config import get_settings
@@ -541,7 +541,9 @@ def answer_knowledge(
     ensure_customer_access(user, payload.customer_id)
     can_review_sensitive_references = user.role == "manager"
     evidence = []
-    if not is_price_sensitive(payload.query) or can_review_sensitive_references:
+    if not is_price_sensitive(payload.query) or (
+        can_review_sensitive_references and is_price_reference_question(payload.query)
+    ):
         evidence = get_search_service().search(
             db,
             query=payload.query,

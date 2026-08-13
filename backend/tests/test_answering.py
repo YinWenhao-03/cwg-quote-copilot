@@ -3,6 +3,7 @@ from app.answering import (
     _fallback_claims,
     _validated_claims,
     get_answer_service,
+    is_price_decision_question,
     is_price_reference_question,
     is_price_sensitive,
 )
@@ -115,6 +116,45 @@ def test_manager_live_price_question_uses_pricing_without_document_evidence() ->
     assert response.answer_type == "requires_pricing_workflow"
     assert response.evidence == []
     assert "报价计算" in response.answer
+
+
+def test_hypothetical_price_decision_is_calculated_and_tracks_user_provenance() -> None:
+    query = (
+        "不要告诉我底价是多少，只回答：如果供应商成本是650元、硬底价是780元，"
+        "那么销售报800元是否可以提交审批？同时说明这些数字分别来自哪些内部文件。"
+    )
+
+    assert is_price_decision_question(query)
+    assert not is_price_reference_question(query)
+    response = get_answer_service().answer(
+        query=query,
+        evidence=[evidence("任何低于硬底价的报价均应由系统直接阻断。")],
+        retrieval_mode="hybrid",
+        allow_sensitive_references=True,
+    )
+
+    assert response.answer_type == "calculated"
+    assert response.model == "deterministic-price-comparison"
+    assert "800 元高于或等于硬底价 780 元" in response.answer
+    assert "可以提交审批" in response.answer
+    assert "缺少标准最低价" in response.answer
+    assert "均来自你本次问题中的假设" in response.answer
+    assert "不是知识库内部文件" in response.answer
+    assert response.citations == []
+    assert response.evidence == []
+
+
+def test_hypothetical_price_below_hard_floor_is_blocked() -> None:
+    response = get_answer_service().answer(
+        query="如果硬底价为780元，销售报760元是否可以提交审批？",
+        evidence=[],
+        retrieval_mode="hybrid",
+        allow_sensitive_references=True,
+    )
+
+    assert response.answer_type == "calculated"
+    assert "系统应直接阻断" in response.answer
+    assert "不能提交审批" in response.answer
 
 
 def test_fallback_keeps_relevant_fact_and_reports_its_real_source() -> None:

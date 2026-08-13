@@ -125,3 +125,24 @@ def test_manager_can_answer_from_management_price_policy_but_sales_cannot() -> N
             )
     finally:
         service.provider = previous_provider
+
+
+def test_manager_hypothetical_price_decision_does_not_retrieve_internal_files() -> None:
+    with TestClient(app) as client:
+        manager = login(client, "manager@cwg.local", "ManagerDemo!2026")
+        payload = {
+            "query": (
+                "如果供应商成本是650元、硬底价是780元，那么销售报800元是否可以"
+                "提交审批？同时说明这些数字分别来自哪些内部文件。"
+            ),
+            "top_k": 6,
+            "retrieval_mode": "hybrid",
+        }
+
+        answer = client.post("/answer", headers=manager, json=payload).json()
+
+        assert answer["answer_type"] == "calculated"
+        assert answer["model"] == "deterministic-price-comparison"
+        assert answer["citations"] == []
+        assert answer["evidence"] == []
+        assert "均来自你本次问题中的假设" in answer["answer"]

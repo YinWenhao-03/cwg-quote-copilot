@@ -153,7 +153,9 @@ class AnswerCitation(BaseModel):
 
 class AnswerResponse(BaseModel):
     answer: str
-    answer_type: Literal["grounded", "insufficient", "requires_pricing_workflow"]
+    answer_type: Literal[
+        "grounded", "calculated", "insufficient", "requires_pricing_workflow"
+    ]
     citations: list[AnswerCitation]
     evidence: list[Evidence]
     grounded: bool
