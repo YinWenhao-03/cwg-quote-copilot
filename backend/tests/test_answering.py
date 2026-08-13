@@ -101,7 +101,7 @@ def test_manager_can_answer_price_policy_questions_from_management_evidence() ->
     assert response.evidence
 
 
-def test_manager_live_price_question_still_uses_pricing_and_keeps_related_evidence() -> None:
+def test_manager_live_price_question_uses_pricing_without_document_evidence() -> None:
     query = "这个客户当前最低可以报多少钱"
     assert not is_price_reference_question(query)
     related = [evidence("低于标准最低价的例外报价必须由经理填写理由。")]
@@ -113,8 +113,8 @@ def test_manager_live_price_question_still_uses_pricing_and_keeps_related_eviden
     )
 
     assert response.answer_type == "requires_pricing_workflow"
-    assert response.evidence == related
-    assert "实时定价" in response.answer
+    assert response.evidence == []
+    assert "报价计算" in response.answer
 
 
 def test_fallback_keeps_relevant_fact_and_reports_its_real_source() -> None:

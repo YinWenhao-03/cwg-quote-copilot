@@ -1,8 +1,10 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   BadgeCheck,
+  Calculator,
   FilePlus2,
   MessageSquareText,
   Search,
@@ -23,6 +25,7 @@ const classNames: Record<string, string> = {
 
 export default function KnowledgePage() {
   const user = useSession();
+  const router = useRouter();
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [query, setQuery] = useState("S4-1000 的包装要求是什么");
   const [mode, setMode] = useState<"hybrid" | "dense" | "bm25">("hybrid");
@@ -68,6 +71,24 @@ export default function KnowledgePage() {
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
+      setBusy(false);
+    }
+  }
+
+  async function startPricing() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const inquiry = await api<{ id: string }>("/inquiries", {
+        method: "POST",
+        body: JSON.stringify({ raw_text: query }),
+      });
+      const result = await api<{ quote_id?: string }>(`/inquiries/${inquiry.id}/process`, {
+        method: "POST",
+      });
+      router.push(result.quote_id ? `/quotes/${result.quote_id}` : `/inquiries/${inquiry.id}`);
+    } catch (error) {
+      setMessage((error as Error).message);
       setBusy(false);
     }
   }
@@ -212,6 +233,12 @@ export default function KnowledgePage() {
                   <div className="whitespace-pre-wrap text-[15px] leading-7 text-[var(--ink)]">
                     {answer.answer}
                   </div>
+                  {answer.answer_type === "requires_pricing_workflow" && user.role !== "procurement" && (
+                    <button className="button-primary mt-4" onClick={startPricing} disabled={busy}>
+                      <Calculator size={16} />
+                      {busy ? "正在创建报价任务" : "开始报价计算"}
+                    </button>
+                  )}
                   {answer.citations.length > 0 && (
                     <div className="mt-4 flex flex-wrap gap-2">
                       {answer.citations.map((citation) => (
@@ -229,7 +256,7 @@ export default function KnowledgePage() {
                   )}
                 </div>
 
-                {results.length > 0 && (
+                {answer.answer_type !== "requires_pricing_workflow" && results.length > 0 && (
                   <details className="border-t border-[var(--line)]">
                     <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-[var(--muted)]">
                       查看证据原文与检索轨迹（{results.length}）

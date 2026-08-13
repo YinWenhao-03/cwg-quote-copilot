@@ -258,22 +258,15 @@ class GroundedAnswerService:
             query
         )
         if sensitive and not can_answer_from_documents:
-            related_evidence = evidence if allow_sensitive_references else []
-            manager_note = (
-                "你有权限查看的相关价格政策资料已列在下方，但这些资料不能替代实时定价。"
-                if related_evidence
-                else ""
-            )
             return AnswerResponse(
                 answer=(
-                    "这类价格问题不能从知识库文档直接作答。请在报价工作台补齐客户、SKU、"
+                    "这类价格问题需要进入报价计算。请补齐客户、SKU、"
                     "数量、目的地和贸易条款，系统会使用当前有效成本、物流、汇率及权限规则"
                     "进行确定性计算；历史报价和过期价格不会作为当前价格依据。"
-                    + manager_note
                 ),
                 answer_type="requires_pricing_workflow",
                 citations=[],
-                evidence=related_evidence,
+                evidence=[],
                 grounded=True,
                 model="deterministic-pricing-router",
                 retrieval_mode=retrieval_mode,
